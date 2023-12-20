@@ -1,16 +1,10 @@
 #!/bin/bash
 
-# Importing Password
-source ./databasePass
-
 # Welcom Message
 echo "Welcome to the Database manager."
 
-# Current Name
-user=$(whoami)
-
 # Options
-menuOptions=('Create_Database' 'Create_Table' 'Enter_Data' 'Delete_Database' 'Delete_Table' 'Delete_Data' 'Exit')
+menuOptions=('Show_Databases' 'Show_Tables' 'Display_Data' 'Create_Database' 'Create_Table' 'Enter_Data' 'Delete_Database' 'Delete_Table' 'Delete_Data' 'Exit')
 
 # Mysql Database types
 mysqlDataTypes=('char' 'varchar' 'text' 'int' 'float' 'date')
@@ -19,9 +13,7 @@ databases=''
 
 # Displays all databases and populates teh databases variable
 showDatabases() {
-	query="show databases"
-	# Adds all databases to the databases variable
-    databases=$(mysql -u $user --password="$dataPass" -s -N -e "$query" | grep -v 'information_schema' | grep -v 'performance_schema' | grep -v 'sys' | grep -v 'mysql')
+    databases="$@"
 
     # Lists all databases
     num=1
@@ -29,6 +21,19 @@ showDatabases() {
         echo "$num $database"
         ((num++))
     done
+}
+
+pullDatabases() {
+	query="show databases"
+    # Adds all databases to the databases variable
+    databases=$(mysql --defaults-extra-file=./config.cnf -s -N -e "$query" | grep -v 'information_schema' | grep -v 'performance_schema' | grep -v 'sys' | grep -v 'mysql')
+	echo $databases
+}
+
+pullAllTables(){
+	database=$1
+	query="show tables"
+    tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "$query")
 }
 
 
@@ -53,14 +58,18 @@ while [[ 1 ]];do
 		"Create_Database")
 			read -p "Enter the name of your database: " name
 			echo "Creating Database"
-			mysql -u $user --password="$dataPass" -e "create database if not exists $name"
+			mysql --defaults-extra-file=./config.cnf -e "create database if not exists $name"
 			echo "Database created"
 		;;
 
 ###################### TABLE CREATION ######################################
 
 		"Create_Table")
-			showDatabases
+			# Adds all databases to the databases variable
+    		databases=`pullDatabases`
+
+			showDatabases "$databases"
+
 			# If no databases then exits
 			if [[ $(echo $databases | wc -w) == 0 ]]; then
 				echo "No Databases"
@@ -69,8 +78,8 @@ while [[ 1 ]];do
 			fi
 
 			# Takes input for database, table naem and number of columns
-			read -p "Select a Database" database
-			database=${databases[$database]}
+			read -p "Select a Database: " database
+			database=$(echo $databases | awk -v var=$database '{print $var}')
 			read -p "Enter the table name: " tableName
 
 			# Starting table creation query
@@ -123,7 +132,7 @@ while [[ 1 ]];do
 			done
 
 			# Creates the table
-			mysql -u $user -p $database --password="$dataPass" -e "$tableCreation"
+			mysql --defaults-extra-file=./config.cnf $database -e "$tableCreation"
 			
 			# Confirmation
 			if [[ ! $? ]];then
@@ -133,10 +142,95 @@ while [[ 1 ]];do
 			fi
 		;;
 
+########################## SHOW DATABASES ###############################
+
+		"Show_Databases")
+			databases=`pullDatabases`
+
+			showDatabases $databases
+			# If no databases then exits
+            if [[ $(echo $databases | wc -w) == 0 ]]; then
+                echo "No Databases"
+                sleep 1
+                continue
+            fi
+			read -p "Enter to continue"
+		;;
+
+######################### SHOW TABLES #################################
+
+		"Show_Tables")
+			databases=`pullDatabases`
+
+            showDatabases $databases
+
+            # If no databases then exits
+            if [[ $(echo $databases | wc -w) == 0 ]]; then
+                echo "No Databases"
+                sleep 1
+                continue
+            fi
+
+            # Takes input for database, table naem and number of columns
+            read -p "Select a Database: " database
+            database=$(echo $databases | awk -v var=$database '{print $var}')
+			tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "show tables")
+
+            if [[ $(echo $tables | wc -w) == 0 ]]; then
+                echo "No Tables in $database"
+                read -p 'Enter to continue'
+                continue
+            fi
+			
+			mysql --defaults-extra-file=./config.cnf $database -e "show tables"
+
+			read -p 'Enter to continue'
+			
+		;;
+
+########################### SHOW DATA #################################
+
+		"Display_Data")
+			databases=`pullDatabases`
+
+            showDatabases $databases
+
+            # If no databases then exits
+            if [[ $(echo $databases | wc -w) == 0 ]]; then
+                echo "No Databases"
+                sleep 1
+                continue
+            fi
+
+            # Takes input for database, table naem and number of columns
+            read -p "Select a Database: " database
+            database=$(echo $databases | awk -v var=$database '{print $var}')
+            tables=$(mysql --defaults-extra-file=./config.cnf $database -e "show tables")
+			i=0
+            for table in $tables;do
+                echo "$i $table"
+            done
+
+            if [[ $(echo $tables | wc -w) == 0 ]]; then
+                echo "No Tables in $database"
+                sleep 1
+                continue
+            fi
+
+            # Enter table
+            read -p "Select a table to view: " tableNum
+
+			mysql --defaults-extra-file=./config.cnf -p $database -e "select * from ${tables[$tableNum]}"
+			read -p 'Enter to continue'
+		;;
+
 ############################ DATABASE DELETION ##############################
 
 		"Delete_Database")
-			showDatabases
+			# Adds all databases to the databases variable
+            databases=`pullDatabases`
+
+            showDatabases $databases
 			
 			# If no databases then exits
             if [[ $(echo $databases | wc -w) == 0 ]]; then
@@ -147,16 +241,19 @@ while [[ 1 ]];do
 
 			# Enter database to delete
 			read -p "Which database would you like to delete: " dataNum
-			database=$(echo $databases | awk -v var=$dataNum '{print $var}')
+			database=$(echo "$databases" | awk -v var=$dataNum '{print $var}')
 
 			# Deletes database
-			mysql -u $user --password="$dataPass" -e "drop database $database"
+			mysql --defaults-extra-file=./config.cnf -e "drop database $database"
 		;;
 
 ############################ TABLE DELETE ##########################
 
 		"Delete_Table")
-			showDatabases
+			# Adds all databases to the databases variable
+            databases=`pullDatabases`
+
+            showDatabases $databases
 
 			# If no databases then exits
             if [[ $(echo $databases | wc -w) == 0 ]]; then
@@ -171,7 +268,7 @@ while [[ 1 ]];do
 
 			# Pulls all the tables
 			query="show tables"
-			tables=$(mysql -u $user -p $database --password="$dataPass" -s -N -e "$query")
+			tables=`pullAllTables` $database
 			
 			# Displays tables
 			i=0
@@ -179,12 +276,18 @@ while [[ 1 ]];do
 				echo "$i $table"
 			done
 
+			if [[ $(echo $tables | wc -w) == 0 ]]; then
+                echo "No Tables in $database"
+                sleep 1
+                continue
+            fi
+
 			# Enter table
 			read -p "Select a table to delete: " tableNum
 			
 			# Deletes the table
 			query="drop table ${table[$tableNum]}"
-			mysql -u $user -p $database --password="$dataPass" -e "$query"
+			mysql --defaults-extra-file=./config.cnf $database -e "$query"
 		;;
 
 ############################ EXIT #############################

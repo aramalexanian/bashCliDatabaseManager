@@ -4,7 +4,7 @@
 echo "Welcome to the Database manager."
 
 # Options
-menuOptions=('Show_Databases' 'Show_Tables' 'Display_Data' 'Create_Database' 'Create_Table' 'Enter_Data' 'Delete_Database' 'Delete_Table' 'Delete_Data' 'Exit')
+menuOptions=('Show_Databases' 'Show_Tables' 'Display_Data' 'Create_Database' 'Create_Table' 'Enter_Data' 'Delete_Database' 'Delete_Table' 'Exit')
 
 # Mysql Database types
 mysqlDataTypes=('char' 'varchar' 'text' 'int' 'float' 'date')
@@ -29,13 +29,6 @@ pullDatabases() {
     databases=$(mysql --defaults-extra-file=./config.cnf -s -N -e "$query" | grep -v 'information_schema' | grep -v 'performance_schema' | grep -v 'sys' | grep -v 'mysql')
 	echo $databases
 }
-
-pullAllTables(){
-	database=$1
-	query="show tables"
-    tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "$query")
-}
-
 
 # Loops Eternaly
 while [[ 1 ]];do
@@ -332,7 +325,7 @@ while [[ 1 ]];do
 
 			# Pulls all the tables
 			query="show tables"
-			tables=`pullAllTables` $database
+			tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "show tables")
 			
 			# Displays tables
 			i=0

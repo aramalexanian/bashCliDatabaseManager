@@ -39,6 +39,7 @@ pullAllTables(){
 
 # Loops Eternaly
 while [[ 1 ]];do
+	selection=-1
 	clear
 	i=0
 	# Loop through options and print them
@@ -142,6 +143,69 @@ while [[ 1 ]];do
 			fi
 		;;
 
+######################### ENTERING DATA ############################
+
+		"Enter_Data")
+			# Adds all databases to the databases variable
+            databases=`pullDatabases`
+
+            showDatabases "$databases"
+
+            # If no databases then exits
+            if [[ $(echo $databases | wc -w) == 0 ]]; then
+                echo "No Databases"
+                sleep 1
+                continue
+            fi
+
+            # Takes input for database, table naem and number of columns
+            read -p "Select a Database: " database
+            database=$(echo $databases | awk -v var=$database '{print $var}')
+
+			tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "show tables")
+            i=0
+            for table in $tables;do
+                echo "$i $table"
+            done
+
+            if [[ $(echo $tables | wc -w) == 0 ]]; then
+                echo "No Tables in $database"
+                sleep 1
+                continue
+            fi
+
+            # Enter table
+            read -p "Select a table: " tableNum
+			
+			columns=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "describe ${tables[$tableNum]}" | awk '{print $1}')
+
+			columnCount=$(echo $columns | wc -w)
+
+			if [[ $columnCount == 0 ]]; then
+				echo "No Columns"
+				sleep 1
+				continue
+			fi
+
+			i=1
+			query="insert into ${tables[$tableNum]} values("
+			echo ${tables[$tableNum]}
+			for column in $columns; do
+				read -p $column': ' entry
+				query+="$entry"
+				if [[ $columnCount != $i ]]; then
+					query+=', '
+				fi
+				((i++))
+			done
+			query+=')'
+			echo $query
+			
+			mysql --defaults-extra-file=./config.cnf $database -e "$query"
+
+			read -p "Data added. Press Enter to continue"
+		;;
+
 ########################## SHOW DATABASES ###############################
 
 		"Show_Databases")
@@ -205,7 +269,7 @@ while [[ 1 ]];do
             # Takes input for database, table naem and number of columns
             read -p "Select a Database: " database
             database=$(echo $databases | awk -v var=$database '{print $var}')
-            tables=$(mysql --defaults-extra-file=./config.cnf $database -e "show tables")
+            tables=$(mysql --defaults-extra-file=./config.cnf $database -s -N -e "show tables")
 			i=0
             for table in $tables;do
                 echo "$i $table"
@@ -220,7 +284,7 @@ while [[ 1 ]];do
             # Enter table
             read -p "Select a table to view: " tableNum
 
-			mysql --defaults-extra-file=./config.cnf -p $database -e "select * from ${tables[$tableNum]}"
+			mysql --defaults-extra-file=./config.cnf $database -e "select * from ${tables[$tableNum]}"
 			read -p 'Enter to continue'
 		;;
 
